@@ -784,8 +784,10 @@ def cancel_evaluation():
         "status": "cancelled"
     })
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(
-        debug=True,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        debug=False,
         threaded=True
     )
