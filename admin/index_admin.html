@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>STEG_ARABIC - لوحة التحكم</title>
+
+    <script src="js/tailwind.min.js"></script>
+    <script src="js/cdn.min.js"></script>
+
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('admin-theme') || 'system';
+            if (savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+
+    <style>
+        /* === الثيم المظلم الفاخر الافتراضي (Dark Mode) === */
+        .glass-card { background: rgba(13, 18, 35, 0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glow-blue { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+        body { background: radial-gradient(circle at top right, #1e1b4b, #05070f); min-height: 100vh; color: white; transition: background 0.3s, color 0.3s; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid rgba(255, 255, 255, 0.1); padding: 12px; text-align: center; transition: all 0.2s; }
+        thead { background: rgba(255, 255, 255, 0.05); }
+        tfoot { background: rgba(59, 130, 246, 0.15); font-weight: bold; }
+
+        /* === كلاس السحر الخاص بإخفاء الصفوف ديناميكياً لتجنب صراع الـ JS === */
+        .hide-table-rows tbody { display: none !important; }
+
+        /* === تنسيقات الثيم المضيء المتناسق (Light Mode) === */
+        html:not(.dark) body { background: radial-gradient(circle at top right, #f0f7ff, #f8fafc); color: #0f172a; }
+        html:not(.dark) .glass-card { background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(15, 23, 42, 0.08); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04); }
+        html:not(.dark) th { background: rgba(15, 23, 42, 0.04); color: #1e293b; border: 1px solid rgba(15, 23, 42, 0.08); }
+        html:not(.dark) td { color: #334155; border: 1px solid rgba(15, 23, 42, 0.08); background: rgba(255, 255, 255, 0.5); }
+        html:not(.dark) thead { background: rgba(0, 0, 0, 0.02); }
+        html:not(.dark) tfoot { background: rgba(59, 130, 246, 0.08); color: #1e3a8a; }
+        html:not(.dark) textarea { color: #0f172a; }
+        html:not(.dark) .text-slate-400 { color: #475569; }
+        html:not(.dark) .text-slate-500 { color: #64748b; }
+
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            let container = document.createElement('div');
+            container.id = 'custom-toast-container';
+            container.style.cssText = `
+                position: fixed;
+                bottom: 24px;
+                left: 24px;
+                z-index: 10000;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                max-width: 420px;
+                width: calc(100% - 48px);
+                pointer-events: none;
+            `;
+            document.body.appendChild(container);
+
+            window.alert = function(message) {
+                const toast = document.createElement('div');
+                toast.style.pointerEvents = 'auto';
+
+                const isError = message.includes('❌') || message.includes('خطأ') || message.includes('فشل') || message.includes('⚠️');
+                const borderThemeColor = isError ? '#ef4444' : '#10b981';
+                const glowColor = isError ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+
+                toast.style.cssText = `
+                    background: rgba(13, 18, 35, 0.9);
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-left: 6px solid ${borderThemeColor};
+                    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 20px ${glowColor};
+                    color: #ffffff;
+                    padding: 16px 20px;
+                    border-radius: 16px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    line-height: 1.6;
+                    direction: rtl;
+                    white-space: pre-line;
+                    opacity: 0;
+                    transform: translateX(-50px) scale(0.95);
+                    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                `;
+
+                toast.innerHTML = message;
+                container.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.style.opacity = '1';
+                    toast.style.transform = 'translateX(0) scale(1)';
+                }, 50);
+
+                const displayDuration = message.length > 80 ? 7500 : 4000;
+
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(-50px) scale(0.9)';
+                    setTimeout(() => { toast.remove(); }, 400);
+                }, displayDuration);
+            };
+        });
+    </script>
+</head>
+<body x-data="{
+    currentPage: 'experiments',
+    status: 'idle',
+    progress: 0,
+    currentTheme: localStorage.getItem('admin-theme') || 'system',
+    themeDropdownOpen: false,
+    showEvalRows: true,
+    showAttackRows: true,
+
+    setTheme(theme) {
+        this.currentTheme = theme;
+        localStorage.setItem('admin-theme', theme);
+        this.applyTheme();
+    },
+    applyTheme() {
+        if (this.currentTheme === 'dark' || (this.currentTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    },
+    validateArabic(e) {
+        const arabicPattern = /^[\u0600-\u06FF\s\d\p{P}]*$/u;
+        if (!arabicPattern.test(e.target.value)) {
+            alert('⚠️ يُسمح بالنصوص العربية فقط!');
+            e.target.value = e.target.value.replace(/[^\u0600-\u06FF\s\d\p{P}]/gu, '');
+        }
+    },
+    validateImage(e) {
+        const file = e.target.files[0];
+        if (file && !file.type.startsWith('image/')) {
+            alert('❌ خطأ: يرجى اختيار ملف صورة فقط!');
+            e.target.value = '';
+        }
+    }
+}"
+x-init="applyTheme(); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme())"
+@update-status.window="status = $event.detail"
+@update-progress.window="progress = $event.detail">
+
+    <header class="max-w-7xl mx-auto mt-8 p-4 glass-card rounded-3xl flex justify-between items-center border border-blue-500/20">
+        <div class="flex items-center gap-4 px-2">
+            <h1 class="text-xl font-black tracking-wide">STEG_ARABIC</h1>
+            <div class="bg-gradient-to-tr from-blue-500 to-purple-600 p-2 rounded-xl glow-blue">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+            </div>
+
+            <div class="relative inline-block text-right mr-1" @click.away="themeDropdownOpen = false">
+                <button @click="themeDropdownOpen = !themeDropdownOpen" class="flex items-center gap-2 px-3 py-1.5 bg-slate-200/50 dark:bg-slate-900/40 text-xs font-bold rounded-xl border border-slate-300/30 dark:border-slate-800 transition hover:scale-[1.02] text-slate-800 dark:text-slate-200 focus:outline-none">
+                    <span x-show="currentTheme === 'light'">☀️ مضيء</span>
+                    <span x-show="currentTheme === 'dark'">🌙 مظلم</span>
+                    <span x-show="currentTheme === 'system'">💻 تلقائي</span>
+                    <svg class="w-3 h-3 opacity-60 transition-transform duration-200" :class="themeDropdownOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+
+                <div x-show="themeDropdownOpen" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="transform opacity-0 scale-95" x-transition:enter-end="transform opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="transform opacity-100 scale-100" x-transition:leave-end="transform opacity-0 scale-95" class="absolute left-0 mt-2 w-32 glass-card rounded-2xl border border-blue-500/20 shadow-2xl overflow-hidden z-[99] py-1" style="display: none;">
+                    <button @click="setTheme('light'); themeDropdownOpen = false" class="w-full text-right px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-blue-500/10 dark:hover:bg-blue-500/20 transition flex items-center gap-2">☀️ مضيء</button>
+                    <button @click="setTheme('dark'); themeDropdownOpen = false" class="w-full text-right px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-blue-500/10 dark:hover:bg-blue-500/20 transition flex items-center gap-2">🌙 مظلم</button>
+                    <button @click="setTheme('system'); themeDropdownOpen = false" class="w-full text-right px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-blue-500/10 dark:hover:bg-blue-500/20 transition flex items-center gap-2">💻 تلقائي</button>
+                </div>
+            </div>
+        </div>
+
+        <nav class="flex gap-2">
+            <button @click="currentPage = 'experiments'" class="px-6 py-2 rounded-2xl transition font-bold" :class="currentPage === 'experiments' ? 'bg-blue-600 glow-blue text-white' : 'hover:bg-black/5 dark:hover:bg-white/5'">التجارب 🧪</button>
+            <button @click="currentPage = 'evaluation'" class="px-6 py-2 rounded-2xl transition font-bold" :class="currentPage === 'evaluation' ? 'bg-purple-600 glow-blue text-white' : 'hover:bg-black/5 dark:hover:bg-white/5'">التقييم 📊</button>
+            <button @click="currentPage = 'userPanel'" class="px-6 py-2 rounded-2xl transition font-bold" :class="currentPage === 'userPanel' ? 'bg-emerald-600 glow-blue text-white' : 'hover:bg-black/5 dark:hover:bg-white/5'">واجهة المستخدم 👤</button>
+        </nav>
+    </header>
+
+    <main class="max-w-7xl mx-auto mt-8 p-6">
+
+        <section x-show="currentPage === 'experiments'" class="space-y-8" x-transition>
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="glass-card p-8 rounded-3xl border border-blue-500/20 flex flex-col h-full">
+                    <h2 class="text-xl font-bold mb-6">اسحب الصورة للتجربة</h2>
+                    <div class="flex-1 min-h-[220px] border-2 border-dashed border-slate-400 dark:border-slate-700 rounded-3xl flex flex-col items-center justify-center hover:border-blue-500 transition cursor-pointer p-4 relative overflow-hidden bg-slate-500/5 dark:bg-slate-950/20" onclick="document.getElementById('adminImageInput').click()">
+                        <input type="file" id="adminImageInput" accept="image/*" class="hidden" @change="validateImage($event)">
+                        <span id="uploadPlaceholder" class="text-slate-500 dark:text-slate-400 text-sm font-medium tracking-wide">اضغط لاختيار صورة (JPG, PNG)</span>
+                    </div>
+                </div>
+
+                <div class="glass-card p-8 rounded-3xl border border-purple-500/20">
+                    <h2 class="text-xl font-bold mb-6">النص العربي</h2>
+                    <textarea @input="validateArabic($event)" class="w-full h-48 bg-transparent border-none focus:ring-0 text-white placeholder-slate-400" placeholder="أدخل النص العربي فقط..."></textarea>
+                    <button class="w-full mt-4 bg-gradient-to-r from-blue-600 to-purple-600 py-4 rounded-2xl font-bold text-white transition hover:scale-[1.02]">تشغيل التجربة</button>
+                </div>
+            </div>
+
+            <div id="expResultCard" class="glass-card p-8 rounded-3xl border border-emerald-500/30 shadow-2xl transition-all duration-500 transform" style="display: none;">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                        📊 نتائج التجربة
+                    </h3>
+                    <button onclick="document.getElementById('expResultCard').style.display='none'" class="text-xs bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 px-3 py-1.5 rounded-xl text-red-500 transition font-bold">
+                        إغلاق النتائج ✖
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table id="expResultTable">
+                        <thead>
+                            <tr class="bg-slate-500/5 dark:bg-white/5">
+                                <th class="text-right">نوع الاختبار / الهجوم المحاكي</th>
+                                <th>مقياس PSNR (dB)</th>
+                                <th>مؤشر التشابه (SSIM)</th>
+                                <th>معدل خطأ البتات (BER)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200/10 font-medium">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section x-show="currentPage === 'evaluation'" class="space-y-8" x-transition>
+
+            <div x-show="status === 'idle'" class="text-center p-20 glass-card rounded-3xl border border-purple-500/20">
+                <button id="startEvalBtn" class="px-12 py-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl font-bold text-xl text-white hover:scale-[1.02] transition">بدء التقييم </button>
+            </div>
+
+            <div x-show="status === 'loading_eval'" class="flex flex-col items-center justify-center p-20 glass-card rounded-3xl border border-blue-500/20" x-transition>
+                <div class="relative w-20 h-20 mb-4 flex items-center justify-center">
+                    <div class="absolute inset-0 border-4 border-black/5 dark:border-white/5 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-transparent border-t-blue-500 border-b-purple-500 rounded-full animate-spin"></div>
+                    <span class="text-sm font-black text-slate-800 dark:text-white" x-text="progress + '%'">0%</span>
+                </div>
+                <p class="text-lg font-medium text-slate-700 dark:text-slate-300 mb-4">جاري تنفيذ التقييم... </p>
+                <div class="w-64 h-2 bg-black/5 dark:bg-white/5 rounded-full overflow-hidden mb-6">
+                    <div class="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300" :style="'width: ' + progress + '%'"></div>
+                </div>
+                <button @click="if(window.cancelProcessing) window.cancelProcessing(); status = 'idle';" class="px-6 py-2 bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 rounded-xl hover:bg-red-500/20 transition text-sm font-medium">
+                    إلغاء المعالجة 🛑
+                </button>
+            </div>
+
+            <div x-show="status === 'finished'" class="space-y-8" x-transition>
+                <div class="flex justify-between items-center px-2">
+                    <h2 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-400">نتائج التقييم</h2>
+                    <button @click="status = 'idle'" class="text-sm bg-red-500/10 border border-red-500/30 px-4 py-2 rounded-xl text-red-500 dark:text-red-400 hover:bg-red-500/20 transition">إعادة التقييم 🔄</button>
+                </div>
+
+                <div class="glass-card p-8 rounded-3xl overflow-x-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-blue-600 dark:text-blue-400">نتائج التقييم </h2>
+                        <button @click="showEvalRows = !showEvalRows" class="text-xs bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-600 dark:text-blue-400 hover:bg-blue-500/30 transition font-black focus:outline-none">
+                            <span x-show="showEvalRows"> إخفاء التفاصيل</span>
+                            <span x-show="!showEvalRows"> إظهار التفاصيل</span>
+                        </button>
+                    </div>
+                    <table id="evalTable" :class="showEvalRows ? '' : 'hide-table-rows'">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">معاينة الصورة</th>
+                                <th colspan="3">SAS (المقترحة)</th>
+                                <th colspan="3">LSB (التقليدية)</th>
+                                <th colspan="3">أمان SAS</th>
+                                <th colspan="3">أمان LSB</th>
+                            </tr>
+                            <tr>
+                                <th>PSNR</th><th>SSIM</th><th>BER</th>
+                                <th>PSNR</th><th>SSIM</th><th>BER</th>
+                                <th>Chi²</th><th>RS</th><th>Entropy</th>
+                                <th>Chi²</th><th>RS</th><th>Entropy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="13" class="py-10 text-slate-500">في انتظار جلب البيانات ...</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-blue-500/10 font-bold">
+                                <td>المعدل العام (Average)</td>
+                                <td>-</td><td>-</td><td>-</td>
+                                <td>-</td><td>-</td><td>-</td>
+                                <td>-</td><td>-</td><td>-</td>
+                                <td>-</td><td>-</td><td>-</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="glass-card p-8 rounded-3xl overflow-x-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-purple-600 dark:text-purple-400">نتائج اختبار الهجمات</h2>
+                        <button @click="showAttackRows = !showAttackRows" class="text-xs bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/30 px-4 py-2 rounded-xl text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 transition font-black focus:outline-none">
+                            <span x-show="showAttackRows"> إخفاء التفاصيل</span>
+                            <span x-show="!showAttackRows"> إظهار التفاصيل </span>
+                        </button>
+                    </div>
+                    <table id="attackTable" :class="showAttackRows ? '' : 'hide-table-rows'">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">معاينة الصورة</th>
+                                <th colspan="3">ضغط JPEG</th>
+                                <th colspan="3">إضافة ضوضاء (Noise)</th>
+                                <th colspan="3">القص واقتطاع الأطراف (Crop)</th>
+                            </tr>
+                            <tr>
+                                <th>PSNR</th><th>SSIM</th><th>BER</th>
+                                <th>PSNR</th><th>SSIM</th><th>BER</th>
+                                <th>PSNR</th><th>SSIM</th><th>BER</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="10" class="py-10 text-slate-500">في انتظار البيانات...</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-purple-500/10 font-bold">
+                                <td>المعدل العام (Average)</td>
+                                <td>-</td><td>-</td><td>-</td>
+                                <td>-</td><td>-</td><td>-</td>
+                                <td>-</td><td>-</td><td>-</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section x-show="currentPage === 'userPanel'" class="glass-card p-4 rounded-3xl border border-emerald-500/20" x-transition>
+            <iframe src="/" class="w-full h-[600px] rounded-2xl border-none"></iframe>
+        </section>
+    </main>
+
+    <div x-show="status === 'loading_exp'" style="display: none;" class="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center" x-transition>
+        <div class="glass-card p-10 rounded-3xl border border-blue-500/30 text-center max-w-sm w-full mx-4 glow-blue">
+            <div class="relative w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                <div class="absolute inset-0 border-4 border-white/5 rounded-full"></div>
+                <div class="absolute inset-0 border-4 border-transparent border-t-blue-500 border-b-purple-500 rounded-full animate-spin"></div>
+                <span class="text-base font-black text-white" x-text="progress + '%'">0%</span>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">جاري تنفيذ التجربة</h3>
+            <p class="text-xs text-slate-300 mb-4">جاري معالجة البيانات...</p>
+            <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-5">
+                <div class="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300" :style="'width: ' + progress + '%'"></div>
+            </div>
+            <button @click="if(window.cancelProcessing) window.cancelProcessing(); status = 'idle';" class="px-5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl hover:bg-red-500/20 transition text-xs font-medium">
+                إلغاء العملية 🛑
+            </button>
+        </div>
+    </div>
+
+    <script src="admin_script.js?v=11.0"></script>
+</body>
+</html>

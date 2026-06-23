@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بروتوكول إخفاء النصوص العربية داخل الصور</title>
+    <script src="user/js/tailwind.min.js"></script>
+    <script src="user/js/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        @font-face {
+          font-display: swap;
+          font-family: 'IBM Plex Sans Arabic';
+          font-style: normal;
+          font-weight: 300;
+          src: url('./ibm-plex-sans-arabic-v15-arabic/ibm-plex-sans-arabic-v15-arabic-300.woff2') format('woff2');
+        }
+        @font-face {
+          font-display: swap;
+          font-family: 'IBM Plex Sans Arabic';
+          font-style: normal;
+          font-weight: 400;
+          src: url('./ibm-plex-sans-arabic-v15-arabic/ibm-plex-sans-arabic-v15-arabic-regular.woff2') format('woff2');
+        }
+        @font-face {
+          font-display: swap;
+          font-family: 'IBM Plex Sans Arabic';
+          font-style: normal;
+          font-weight: 600;
+          src: url('./ibm-plex-sans-arabic-v15-arabic/ibm-plex-sans-arabic-v15-arabic-600.woff2') format('woff2');
+        }
+        @font-face {
+          font-display: swap;
+          font-family: 'IBM Plex Sans Arabic';
+          font-style: normal;
+          font-weight: 700;
+          src: url('./ibm-plex-sans-arabic-v15-arabic/ibm-plex-sans-arabic-v15-arabic-700.woff2') format('woff2');
+        }
+        body {
+            font-family: 'IBM Plex Sans Arabic', sans-serif;
+            transition: background-color 0.4s ease, color 0.4s ease;
+            overflow-x: hidden;
+        }
+
+        .dark { background-color: #02040a !important; }
+        .light { background-color: #f8fafc !important; }
+
+        .glass-card {
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .dark .glass-card {
+            background: rgba(10, 15, 30, 0.5) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        }
+        .light .glass-card {
+            background: rgba(255, 255, 255, 0.9) !important;
+            border: 1px solid rgba(15, 23, 42, 0.12) !important;
+            box-shadow: 0 15px 35px -10px rgba(15, 23, 42, 0.08);
+        }
+
+        .dark .glow-blue { box-shadow: 0 0 35px -5px rgba(59, 130, 246, 0.45); }
+        .dark .glow-purple { box-shadow: 0 0 35px -5px rgba(139, 92, 246, 0.45); }
+        .dark .glow-text { text-shadow: 0 0 25px rgba(59, 130, 246, 0.3); }
+
+        #matrix-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0;
+            overflow: hidden;
+        }
+        .dark #matrix-container { opacity: 0.75; }
+        .light #matrix-container { opacity: 0.12; }
+
+        @keyframes scan {
+            0% { top: -10%; opacity: 0; }
+            50% { opacity: 1; }
+            100% { top: 110%; opacity: 0; }
+        }
+        .scanner-line {
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #3b82f6, #8b5cf6, #3b82f6, transparent);
+            position: absolute;
+            width: 100%;
+            left: 0;
+            animation: scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            box-shadow: 0 0 20px #3b82f6;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between relative selection:bg-blue-500/30 w-full"
+      :class="darkMode ? 'dark text-slate-200' : 'light text-slate-900'"
+      x-init="document.documentElement.className = darkMode ? 'dark' : 'light'; $watch('darkMode', val => { document.documentElement.className = val ? 'dark' : 'light' })"
+      x-data="{
+        darkMode: true,
+        currentPage: 'home',
+        isLoading: false,
+        loadingText: '',
+        embedImage: null,
+        extractImage: null,
+        isEmbedded: false,
+        isExtracted: false,
+        password: '',
+        secretText: '',
+        maxChars: 0,
+        capacityBits: 0,
+        toasts: [],
+        originalImage: null,
+        stegoImage: null,
+        stegoFilename: null,
+        showComparison: false,
+
+        triggerToast(message, type = 'info') {
+            const id = Date.now();
+            this.toasts.push({ id, message, type });
+            setTimeout(() => {
+                this.toasts = this.toasts.filter(t => t.id !== id);
+            }, 4500);
+        },
+
+        secureNavigate(targetPage) {
+            if (this.secretText || this.password || this.embedImage || this.extractImage) {
+                this.secretText = '';
+                this.password = '';
+                this.embedImage = null;
+                this.extractImage = null;
+                this.isEmbedded = false;
+                this.isExtracted = false;
+                this.maxChars = 0;
+                this.showComparison = false;
+                this.originalImage = null;
+                this.stegoImage = null;
+                this.stegoFilename = null;
+                if(this.$refs.embedFile) this.$refs.embedFile.value = '';
+                if(this.$refs.extractFile) this.$refs.extractFile.value = '';
+
+                this.triggerToast('🔒 تم مسح بيانات الجلسة الحالية.', 'warning');
+            }
+            this.currentPage = targetPage;
+        },
+
+        validateArabic(e) {
+            const arabicPattern = /^[\u0600-\u06FF\s\d\p{P}]*$/u;
+            let inputVal = e.target.value;
+
+            if (!arabicPattern.test(inputVal)) {
+                this.triggerToast('يرجى إدخال نص عربي فقط.', 'warning');
+                this.secretText = inputVal.replace(/[^\u0600-\u06FF\s\d\p{P}]/gu, '');
+            } else {
+                this.secretText = inputVal;
+            }
+        },
+
+        get passValidation() {
+            let pass = this.password;
+            let len = pass.length;
+
+            if (len === 0) return { score: 0, text: 'أدخل كلمة المرور ', valid: false, color: 'bg-slate-500' };
+            if (len < 8) return { score: 1, text: 'يجب أن يكون الطول 8 خانات على الأقل ❌', valid: false, color: 'bg-red-500' };
+
+            const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{}|;:\',.<>?/~`]).{8,}$/;
+            if (!strongPasswordRegex.test(pass)) {
+                return { score: 2, text: 'المفتاح ضعيف! يجب أن يحتوي على رموز (!@#$)، أرقام، وحروف كبيرة وصغيرة ⚠️', valid: false, color: 'bg-amber-500' };
+            }
+
+            return { score: 3, text: 'كلمة المرور قوية ✨', valid: true, color: 'bg-emerald-500' };
+        },
+
+        async checkCapacity(file) {
+            if (!file) return;
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch('/check_capacity', { method: 'POST', body: formData });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    this.maxChars = data.chars;
+                    this.capacityBits = data.bits;
+                    this.triggerToast(`تم تحليل الصورة. السعة المتاحة: ${this.maxChars} حرفاً.`, 'info');
+                }
+            } catch(err) {
+                this.triggerToast('تعذر فحص سعة الصورة.', 'error');
+            }
+        },
+
+        async handleEmbedSubmit() {
+            const fileInput = this.$refs.embedFile;
+            if (!fileInput || !fileInput.files[0]) {
+                this.triggerToast('عذراً، يرجى رفع ملف الصورة أولاً.', 'warning');
+                return;
+            }
+            if (!this.secretText.trim()) {
+                this.triggerToast('يرجى كتابة الرسالة السريّة المراد حمايتها.', 'warning');
+                return;
+            }
+            if (!this.password || !this.passValidation.valid) {
+                this.triggerToast('قواعد الأمان: تعيين كلمة مرور قوية شرط إلزامي للإخفاء.', 'error');
+                return;
+            }
+
+            this.isLoading = true;
+            this.loadingText = 'جاري معالجة البيانات';
+
+            try {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                formData.append('text', this.secretText);
+                formData.append('password', this.password);
+
+                // حفظ الصورة الأصلية للمقارنة
+                const originalFile = fileInput.files[0];
+                this.originalImage = URL.createObjectURL(originalFile);
+
+                const response = await fetch('/encode', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.status === 'error') {
+                    this.triggerToast(`فشلت المعالجة: ${result.message}`, 'error');
+                    return;
+                }
+
+                this.loadingText = 'تم التضمين بنجاح';
+                this.triggerToast('تم التضمين بنجاح، يمكنك الآن حفظ الصورة', 'success');
+
+                // حفظ مسار الصورة المخفية
+                this.stegoFilename = result.filename;
+                this.stegoImage = '/uploads/' + result.filename;
+                this.showComparison = true;
+
+                this.isEmbedded = true;
+
+            } catch (err) {
+                this.triggerToast(`خطأ في الاتصال بالخادم: ${err.message}`, 'error');
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        saveStegoImage() {
+    if (!this.stegoFilename) return;
+
+    const downloadUrl = '/uploads/' + this.stegoFilename;
+
+    const anchor = document.createElement('a');
+    anchor.href = downloadUrl;
+    anchor.download = this.stegoFilename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+
+    this.triggerToast('تم حفظ الصورة المخفية على جهازك', 'success');
+
+    setTimeout(() => {
+
+        // مسح جميع البيانات
+        this.secretText = '';
+        this.password = '';
+        this.embedImage = null;
+        this.extractImage = null;
+        this.isEmbedded = false;
+        this.isExtracted = false;
+        this.maxChars = 0;
+        this.capacityBits = 0;
+        this.originalImage = null;
+        this.stegoImage = null;
+        this.stegoFilename = null;
+        this.showComparison = false;
+
+        if (this.$refs.embedFile)
+            this.$refs.embedFile.value = '';
+
+        if (this.$refs.extractFile)
+            this.$refs.extractFile.value = '';
+
+        // الرجوع للصفحة الرئيسية
+        this.currentPage = 'home';
+
+    }, 1000);
+},
+
+        async handleExtractSubmit() {
+            const fileInput = this.$refs.extractFile;
+            if (!fileInput || !fileInput.files[0]) {
+                this.triggerToast('يرجى رفع الصورة المراد استخراج البيانات منها.', 'warning');
+                return;
+            }
+            if (!this.password) {
+                this.triggerToast('يرجى إدخال كلمة المرور', 'warning');
+                return;
+            }
+
+            this.isLoading = true;
+            this.loadingText = 'جاري استخراج البيانات';
+
+            try {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                formData.append('password', this.password);
+
+                const response = await fetch('/decode', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.status === 'error') {
+                    this.triggerToast(`فشل الاستخراج: ${result.message}`, 'error');
+                    return;
+                }
+
+                if (result.status === 'success' && result.text) {
+                    this.triggerToast('تم استخراج النص.', 'success');
+                    this.secretText = result.text;
+                    this.isExtracted = true;
+                } else {
+                    this.triggerToast('مفتاح فك التشفير غير متطابق أو بنية الصورة تالفة.', 'error');
+                }
+            } catch (err) {
+                this.triggerToast(`حدث خطأ أثناء إستخراج البيانات الرقمية: ${err.message}`, 'error');
+            } finally {
+                this.isLoading = false;
+            }
+        }
+      }">
+
+    <div id="matrix-container" x-show="currentPage === 'home'">
+        <canvas id="matrixCanvas" class="w-full h-full block"></canvas>
+    </div>
+
+    <div class="absolute top-[-10%] left-[-15%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[160px] pointer-events-none dark:block hidden"></div>
+    <div class="absolute bottom-[-10%] right-[-15%] w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[160px] pointer-events-none dark:block hidden"></div>
+
+    <header class="border-b dark:border-slate-900/60 border-slate-300/80 backdrop-blur-md sticky top-0 z-50 glass-card">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between w-full">
+            <div class="flex items-center gap-4 sm:gap-8">
+                <div class="flex items-center gap-3 cursor-pointer" @click="secureNavigate('home')">
+                    <div class="bg-gradient-to-tr from-blue-600 to-purple-600 p-2.5 rounded-xl glow-blue">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <span class="font-bold text-base sm:text-lg tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-white dark:to-slate-300">STEG_ARABIC</span>
+                </div>
+                <nav class="hidden sm:flex items-center gap-2">
+                    <button @click="secureNavigate('home')"
+                            class="px-4 py-2 rounded-xl text-sm font-semibold transition duration-200"
+                            :class="currentPage === 'home' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:text-blue-500'">الرئيسية</button>
+                    <button @click="secureNavigate('about')"
+                            class="px-4 py-2 rounded-xl text-sm font-semibold transition duration-200"
+                            :class="currentPage === 'about' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:text-blue-500'">عن النظام</button>
+                </nav>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="flex items-center bg-slate-300 dark:bg-slate-900 p-1 rounded-full border dark:border-slate-800 border-slate-400 relative w-14 h-7 cursor-pointer transition-all" @click="darkMode = !darkMode">
+                    <div class="absolute w-5 h-5 rounded-full transition-all duration-300 flex items-center justify-center shadow-md"
+                         :class="darkMode ? 'right-1 bg-slate-800 text-yellow-400' : 'right-8 bg-white text-indigo-600'">
+                        <svg x-show="!darkMode" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 14.12l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zm0-8.486L4.343 4.93a1 1 0 111.414-1.414l.707.707a1 1 0 01-1.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z"></path></svg>
+                        <svg x-show="darkMode" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div x-show="isLoading" x-transition.opacity class="fixed inset-0 bg-slate-950/85 backdrop-blur-xl z-[90] flex flex-col items-center justify-center p-4">
+        <div class="relative w-full max-w-sm border border-blue-500/20 rounded-2xl bg-slate-900/60 flex flex-col items-center justify-center p-6 overflow-hidden shadow-2xl">
+            <div class="scanner-line"></div>
+            <div class="space-y-4 text-center z-10 w-full">
+                <div class="text-xs font-mono tracking-widest text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full uppercase inline-block">Security Layer Active</div>
+                <p class="text-sm font-medium text-slate-100" x-text="loadingText"></p>
+                <div class="w-24 bg-slate-800 h-1 rounded-full mx-auto overflow-hidden">
+                    <div class="bg-gradient-to-r from-blue-500 to-purple-500 h-full w-full origin-left animate-pulse"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed bottom-6 left-4 sm:left-6 z-[100] flex flex-col gap-3 max-w-sm w-11/12 sm:w-full pointer-events-none">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-transition:enter="transition ease-out duration-300 transform translate-y-4 opacity-0"
+                 x-transition:enter-end="translate-y-0 opacity-100"
+                 x-transition:leave="transition ease-in duration-200 transform -translate-x-10 opacity-0"
+                 class="pointer-events-auto p-4 rounded-xl shadow-xl border flex items-center gap-3 backdrop-blur-lg glass-card"
+                 :class="{
+                    'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400': toast.type === 'success',
+                    'bg-red-500/10 border-red-500/40 text-red-600 dark:text-red-400': toast.type === 'error',
+                    'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-400': toast.type === 'warning',
+                    'bg-blue-500/10 border-blue-500/40 text-blue-600 dark:text-blue-400': toast.type === 'info'
+                 }">
+                <div class="flex-shrink-0">
+                    <template x-if="toast.type === 'success'"><svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></template>
+                    <template x-if="toast.type === 'error'"><svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></template>
+                    <template x-if="toast.type === 'warning'"><svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></template>
+                    <template x-if="toast.type === 'info'"><svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></template>
+                </div>
+                <p class="text-xs font-bold leading-relaxed" x-text="toast.message"></p>
+            </div>
+        </template>
+    </div>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col justify-center z-10 relative">
+
+        <div x-show="currentPage === 'home'" class="text-center space-y-12" x-transition:enter="transition duration-400">
+            <div class="space-y-5 relative z-10">
+                <span class="px-4 py-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider inline-block">
+                    مشروع تخرج  
+                </span>
+                <h1 class="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight dark:text-white text-slate-900 glow-text">
+                    إخفاء النصوص العربية <br><span class="bg-clip-text text-transparent bg-gradient-to-l from-blue-600 via-indigo-600 to-purple-600 dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400">داخل الصور الرقمية</span>
+                </h1>
+                <p class="dark:text-slate-400 text-slate-600 max-w-xl mx-auto text-sm md:text-base font-normal leading-relaxed">
+                    نظام أمني متكامل يدمج بين خوارزميات الـ Steganography الدقيقة وتشفير AES-256 لحماية وتمرير رسائلك دون إثارة الشبهات.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto pt-2 relative z-10 w-full">
+                <button @click="secureNavigate('embed')" class="group relative glass-card p-6 sm:p-8 rounded-2xl text-right hover:-translate-y-1.5 hover:border-blue-500/30 hover:shadow-2xl">
+                    <div class="bg-gradient-to-br from-blue-500/20 to-blue-600/5 text-blue-600 dark:text-blue-500 p-3.5 rounded-xl w-fit mb-6 shadow-sm">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    </div>
+                    <h3 class="text-lg sm:text-xl font-bold dark:text-white text-slate-900 mb-2">إخفاء رسالة سرية <span class="text-blue-500 text-sm group-hover:translate-x-1 inline-block transition">←</span></h3>
+                    <p class="dark:text-slate-400 text-slate-500 text-xs leading-relaxed">إخفاء النص داخل الصورة مع الحفاظ على جودتها </p>
+                </button>
+
+                <button @click="secureNavigate('extract')" class="group relative glass-card p-6 sm:p-8 rounded-2xl text-right hover:-translate-y-1.5 hover:border-purple-500/30 hover:shadow-2xl">
+                    <div class="bg-gradient-to-br from-purple-500/20 to-purple-600/5 text-purple-600 dark:text-purple-500 p-3.5 rounded-xl w-fit mb-6 shadow-sm">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    </div>
+                    <h3 class="text-lg sm:text-xl font-bold dark:text-white text-slate-900 mb-2">استخراج النص المخفي <span class="text-purple-500 text-sm group-hover:translate-x-1 inline-block transition">←</span></h3>
+                    <p class="dark:text-slate-400 text-slate-500 text-xs leading-relaxed">قراءة الصورة المشفرة لاستعادة النصوص الأصلية باستخدام كلمة المرور.</p>
+                </button>
+            </div>
+        </div>
+
+        <div x-show="currentPage === 'about'" class="space-y-6 w-full max-w-2xl mx-auto" x-transition:enter="transition duration-300">
+            <div class="glass-card rounded-2xl p-6 md:p-8 space-y-6">
+                <h2 class="text-xl sm:text-2xl font-bold dark:text-white text-slate-900">حول حل بروتوكول حماية إخفاء النصوص</h2>
+                <p class="dark:text-slate-300 text-slate-600 font-light text-sm leading-relaxed">
+                    يعمل الحل المقترح كآلية defense-in-depth لحماية وتمرير البيانات النصية باللغة العربية داخل الصور الرقمية بصيغة PNG الحساسة. يوفر النظام حماية مزدوجة؛ حيث يتم تشفير الرسالة المدخلة مسبقاً باستخدام خوارزمية التشفير المتماثل القياسي AES-256 لضمان سرية النص حتى لو تم كشف وجوده، ثم يُحقن النص المشفر في مستويات البتات الدنيا لبكسلات الألوان، مما يوفر قناع حماية متكامل يمنع أجهزة ولجان التحليل الإحصائي الرقمي من اكتشافه بسهولة.
+                </p>
+                <div class="pt-4 border-t dark:border-slate-900 border-slate-300 flex flex-col sm:flex-row gap-2 justify-between items-center text-xs text-slate-500">
+                    <span>التطوير والأهداف: أغراض تعليمية وبحثية سيبرانية</span>
+                    <button @click="secureNavigate('home')" class="text-blue-500 hover:underline font-bold">العودة للرئيسية</button>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="currentPage === 'embed'" class="space-y-4 w-full max-w-2xl mx-auto" x-transition:enter="transition duration-300">
+            <button @click="secureNavigate('home')" class="inline-flex items-center gap-2 text-xs font-bold dark:text-slate-400 text-slate-600 hover:text-blue-500 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>العودة للرئيسية 
+            </button>
+            <div class="glass-card rounded-2xl p-5 sm:p-8 space-y-6">
+                <h2 class="text-xl font-bold dark:text-white text-slate-900">تضمين وحقن البيانات بالصورة</h2>
+
+                <div class="space-y-2">
+                    <label class="text-xs font-bold dark:text-slate-400 text-slate-700">ملف الصورة الحاضنة </label>
+                    <div class="border border-dashed dark:border-slate-800 border-slate-400 rounded-xl p-6 text-center cursor-pointer dark:bg-slate-950/20 bg-slate-100 hover:border-blue-500/40 transition" @click="$refs.embedFile.click()">
+                        <input type="file" x-ref="embedFile" class="hidden" accept="image/png"
+                               @change="const file = $event.target.files[0]; if(file) {
+                                            const ext = file.name.split('.').pop().toLowerCase();
+                                            if(ext !== 'png') {
+                                                triggerToast('تنبيه الأمان: الرجاء استخدام صور بصيغة PNG لحماية سلامة البيانات البكسلية من الضياع.', 'warning');
+                                                $event.target.value = '';
+                                                return;
+                                            }
+                                            embedImage = URL.createObjectURL(file);
+                                            checkCapacity(file);
+                                       }">
+                        <div x-show="!embedImage" class="text-xs text-slate-500 py-4 flex flex-col items-center gap-2">
+                            <svg class="w-8 h-8 text-slate-400 dark:text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <span class="font-semibold text-slate-600 dark:text-slate-400">اضغط هنا لرفع صورة الحاضنة الآمنة</span>
+                        </div>
+                        <img x-show="embedImage" :src="embedImage" class="max-h-40 mx-auto rounded-lg shadow-md" />
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-xs font-bold dark:text-slate-400 text-slate-700">الرسالة العربية السرية المراد إخفاؤها</label>
+                    <textarea rows="3" x-model="secretText" @input="validateArabic($event)" placeholder="اكتب عباراتك العربية المحمية هنا..." class="w-full dark:bg-slate-950/60 bg-white border dark:border-slate-800 border-slate-400 rounded-xl p-3.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 font-medium focus:outline-none focus:border-blue-500 transition leading-relaxed shadow-sm"></textarea>
+
+                    <div class="space-y-1.5" x-show="maxChars > 0">
+                        <div class="w-full bg-slate-300 dark:bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                            <div class="h-full transition-all duration-300"
+                                 :style="`width: ${Math.min((secretText.length / maxChars) * 100, 100)}%`"
+                                 :class="secretText.length > maxChars ? 'bg-red-500' : (secretText.length / maxChars > 0.8 ? 'bg-amber-500' : 'bg-blue-500')"></div>
+                        </div>
+                        <div class="flex justify-between items-center text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            <span>سعة البكسلات المتوفرة: <span class="text-blue-600 dark:text-slate-200" x-text="maxChars"></span> حرفاً</span>
+                            <span>الاستهلاك الحالي: <span :class="secretText.length > maxChars ? 'text-red-500 font-black' : 'text-slate-700 dark:text-slate-300'" x-text="secretText.length"></span> حرفاً</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold dark:text-slate-400 text-slate-700">كلمة المرور</label>
+                    <input type="password" x-model="password" placeholder="أدخل كلمة مرور معقدة (8 خانات على الأقل، تشمل أرقاماً، رموزاً، وحروفاً كبيرة وصغيرة)" class="w-full dark:bg-slate-950/60 bg-white border dark:border-slate-800 border-slate-400 rounded-xl p-3 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 font-medium focus:outline-none focus:border-blue-500 transition shadow-sm">
+                    <div class="text-[11px] font-bold flex items-center gap-2 mt-1">
+                        <div class="w-1.5 h-1.5 rounded-full" :class="passValidation.color"></div>
+                        <span :class="password.length > 0 ? 'text-slate-800 dark:text-slate-300' : 'text-slate-500'" x-text="passValidation.text"></span>
+                    </div>
+                </div>
+
+                <button @click="handleEmbedSubmit()" :disabled="!passValidation.valid || !embedImage || !secretText || secretText.length > maxChars" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-xs transition disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed shadow-md shadow-blue-600/10">إخفاء النص</button>
+
+                <!-- قسم المقارنة بين الصورة الأصلية والصورة المخفية -->
+                <div x-show="showComparison" x-transition:enter="transition duration-500" class="mt-8 space-y-4">
+                    <h3 class="text-lg font-bold text-center dark:text-white text-slate-900">🔍 مقارنة الصور</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        <div class="glass-card rounded-xl p-4 text-center">
+                            <p class="text-sm font-bold text-blue-500 mb-2">📷 الصورة الأصلية</p>
+                            <img :src="originalImage" class="w-full max-w-xs mx-auto rounded-lg shadow-lg border border-blue-500/30" />
+                            <p class="text-xs text-slate-400 mt-2">قبل التضمين</p>
+                        </div>
+                        
+                        <div class="glass-card rounded-xl p-4 text-center">
+                            <p class="text-sm font-bold text-purple-500 mb-2">🔒 الصورة بعد التضمين (Stego)</p>
+                            <img :src="stegoImage" class="w-full max-w-xs mx-auto rounded-lg shadow-lg border border-purple-500/30" />
+                            <p class="text-xs text-slate-400 mt-2">بعد إخفاء النص + التشفير</p>
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button @click="saveStegoImage()" 
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-xl text-sm transition shadow-md shadow-emerald-600/20">
+                            💾 تحميل وحفظ الصورة المخفية
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="currentPage === 'extract'" class="space-y-4 w-full max-w-2xl mx-auto" x-transition:enter="transition duration-300">
+            <button @click="secureNavigate('home')" class="inline-flex items-center gap-2 text-xs font-bold dark:text-slate-400 text-slate-600 hover:text-purple-500 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>العودة للرئيسية 
+            </button>
+            <div class="glass-card rounded-2xl p-5 sm:p-8 space-y-6">
+                <h2 class="text-xl font-bold dark:text-white text-slate-900">إستخراج البيانات</h2>
+
+                <div class="space-y-2">
+                    <label class="text-xs font-bold dark:text-slate-400 text-slate-700">اختر الصورة</label>
+                    <div class="border border-dashed dark:border-slate-800 border-slate-400 rounded-xl p-6 text-center cursor-pointer dark:bg-slate-950/20 bg-slate-100 hover:border-purple-500/40 transition" @click="$refs.extractFile.click()">
+                        <input type="file" x-ref="extractFile" class="hidden" accept="image/png" @change="extractImage = URL.createObjectURL($event.target.files[0]); isExtracted = false;">
+                        <div x-show="!extractImage" class="text-xs text-slate-500 py-4 flex flex-col items-center gap-2">
+                            <svg class="w-8 h-8 text-slate-400 dark:text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            <span class="font-semibold text-slate-600 dark:text-slate-400">ارفع الصورة المستلمة لاستخراج البيانات منها</span>
+                        </div>
+                        <img x-show="extractImage" :src="extractImage" class="max-w-xs mx-auto rounded-lg shadow-md" />
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold dark:text-slate-400 text-slate-700">كلمة المرور </label>
+                    <input type="password" x-model="password" placeholder="أدخل مفتاح فك التشفير لمطابقة مصفوفة الآمان" class="w-full dark:bg-slate-950/60 bg-white border dark:border-slate-800 border-slate-400 rounded-xl p-3 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 font-medium focus:outline-none focus:border-purple-500 transition shadow-sm">
+                </div>
+
+                <button @click="handleExtractSubmit()" :disabled="!password || !extractImage" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-xl text-xs transition disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed shadow-md shadow-purple-600/10">استخراج النص </button>
+
+                <div x-show="isExtracted" class="mt-4 space-y-2 animate-fadeIn" x-transition>
+                    <label class="text-xs font-bold text-emerald-600 dark:text-emerald-400 block">✅ تم إستخراج النص العربي بنجاح :</label>
+                    <div class="w-full dark:bg-slate-900/60 bg-slate-50 border border-emerald-500/40 rounded-xl p-4 text-xs font-bold whitespace-pre-wrap text-slate-900 dark:text-slate-100 shadow-inner select-all leading-relaxed" x-text="secretText"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="border-t dark:border-slate-950 border-slate-300 bg-slate-200 dark:bg-[#010205] py-4 text-[11px] font-bold text-slate-500 text-center z-10 relative">
+        <p>© 2026 بروتوكول الإخفاء والتعمية السيبراني العربي</p>
+    </footer>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const canvas = document.getElementById('matrixCanvas');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            let width = canvas.width = window.innerWidth;
+            let height = canvas.height = window.innerHeight;
+
+            const alphabet = "أبتثجحخدذرزسشصضطظعغفقكلمنهوي🔒💻🛡️⚡🌐01";
+            const fontSize = 16;
+            const columns = width / fontSize;
+            const rainDrops = Array(Math.floor(columns)).fill(1);
+
+            const drawMatrix = () => {
+                const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+                ctx.fillStyle = isDark ? 'rgba(2, 4, 10, 0.06)' : 'rgba(248, 250, 252, 0.06)';
+                ctx.fillRect(0, 0, width, height);
+
+                ctx.fillStyle = isDark ? '#2563eb' : '#3b82f6';
+                ctx.font = '700 ' + fontSize + 'px monospace';
+
+                for (let i = 0; i < rainDrops.length; i++) {
+                    const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                    if (rainDrops[i] * fontSize > height && Math.random() > 0.98) {
+                        rainDrops[i] = 0;
+                    }
+                    rainDrops[i]++;
+                }
+            };
+
+            window.addEventListener('resize', () => {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+            });
+            setInterval(drawMatrix, 35);
+        }
+    });
+    </script>
+</body>
+</html>
