@@ -99,9 +99,48 @@
         .animate-fadeIn {
             animation: fadeIn 0.5s ease-out;
         }
+@media (max-width:768px){
+
+header .max-w-7xl{
+    flex-direction:column;
+    height:auto !important;
+    padding:15px;
+}
+
+nav{
+    width:100%;
+    justify-content:center;
+}
+
+h1{
+    font-size:2.2rem !important;
+}
+
+.glass-card{
+    padding:20px !important;
+}
+
+img{
+    max-width:100%;
+    height:auto;
+}
+
+button{
+    width:100%;
+}
+
+textarea,
+input{
+    font-size:16px;
+}
+
+}
+
     </style>
 </head>
-<body class="min-h-screen flex flex-col justify-between relative selection:bg-blue-500/30 w-full"
+<body
+
+       class="min-h-screen flex flex-col justify-between relative selection:bg-blue-500/30 w-full"
       :class="darkMode ? 'dark text-slate-200' : 'light text-slate-900'"
       x-init="document.documentElement.className = darkMode ? 'dark' : 'light'; $watch('darkMode', val => { document.documentElement.className = val ? 'dark' : 'light' })"
       x-data="{
@@ -342,7 +381,7 @@
     <div class="absolute bottom-[-10%] right-[-15%] w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[160px] pointer-events-none dark:block hidden"></div>
 
     <header class="border-b dark:border-slate-900/60 border-slate-300/80 backdrop-blur-md sticky top-0 z-50 glass-card">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between w-full">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-3 w-full">
             <div class="flex items-center gap-4 sm:gap-8">
                 <div class="flex items-center gap-3 cursor-pointer" @click="secureNavigate('home')">
                     <div class="bg-gradient-to-tr from-blue-600 to-purple-600 p-2.5 rounded-xl glow-blue">
@@ -415,7 +454,7 @@
                 <span class="px-4 py-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider inline-block">
                     مشروع تخرج  
                 </span>
-                <h1 class="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight dark:text-white text-slate-900 glow-text">
+                <h1 class="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-tight dark:text-white text-slate-900 glow-text">
                     إخفاء النصوص العربية <br><span class="bg-clip-text text-transparent bg-gradient-to-l from-blue-600 via-indigo-600 to-purple-600 dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400">داخل الصور الرقمية</span>
                 </h1>
                 <p class="dark:text-slate-400 text-slate-600 max-w-xl mx-auto text-sm md:text-base font-normal leading-relaxed">
@@ -423,8 +462,8 @@
                 </p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto pt-2 relative z-10 w-full">
-                <button @click="secureNavigate('embed')" class="group relative glass-card p-6 sm:p-8 rounded-2xl text-right hover:-translate-y-1.5 hover:border-blue-500/30 hover:shadow-2xl">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 max-w-4xl mx-auto w-full pt-2 relative z-10 w-full">
+                <button @click="secureNavigate('embed')" class="group relative glass-card p-8 rounded-2xl text-right hover:-translate-y-1.5 hover:border-blue-500/30 hover:shadow-2xl">
                     <div class="bg-gradient-to-br from-blue-500/20 to-blue-600/5 text-blue-600 dark:text-blue-500 p-3.5 rounded-xl w-fit mb-6 shadow-sm">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                     </div>
@@ -432,7 +471,7 @@
                     <p class="dark:text-slate-400 text-slate-500 text-xs leading-relaxed">إخفاء النص داخل الصورة مع الحفاظ على جودتها </p>
                 </button>
 
-                <button @click="secureNavigate('extract')" class="group relative glass-card p-6 sm:p-8 rounded-2xl text-right hover:-translate-y-1.5 hover:border-purple-500/30 hover:shadow-2xl">
+                <button @click="secureNavigate('extract')" class="group relative glass-card p-8 rounded-2xl text-right hover:-translate-y-1.5 hover:border-purple-500/30 hover:shadow-2xl">
                     <div class="bg-gradient-to-br from-purple-500/20 to-purple-600/5 text-purple-600 dark:text-purple-500 p-3.5 rounded-xl w-fit mb-6 shadow-sm">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     </div>
@@ -480,7 +519,7 @@
                             <svg class="w-8 h-8 text-slate-400 dark:text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             <span class="font-semibold text-slate-600 dark:text-slate-400">اضغط هنا لرفع صورة الحاضنة الآمنة</span>
                         </div>
-                        <img x-show="embedImage" :src="embedImage" class="max-h-40 mx-auto rounded-lg shadow-md" />
+                        <img x-show="embedImage" :src="embedImage" class="w-full max-w-sm mx-auto rounded-xl shadow-lg object-contain" />
                     </div>
                 </div>
 
@@ -556,7 +595,7 @@
                             <svg class="w-8 h-8 text-slate-400 dark:text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                             <span class="font-semibold text-slate-600 dark:text-slate-400">ارفع الصورة المستلمة لاستخراج البيانات منها</span>
                         </div>
-                        <img x-show="extractImage" :src="extractImage" class="max-w-xs mx-auto rounded-lg shadow-md" />
+                        <img x-show="extractImage" :src="extractImage" class="w-full max-w-sm mx-auto rounded-xl shadow-lg object-contain" />
                     </div>
                 </div>
 
