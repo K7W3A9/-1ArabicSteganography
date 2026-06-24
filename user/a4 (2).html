@@ -172,7 +172,35 @@ input{
 
 }
 
+/* Mobile Optimization */
+@media (max-width:768px){
+
+html,body{
+    overflow-x:hidden;
+}
+
+main{
+    padding:16px !important;
+}
+
+.max-w-7xl,
+.max-w-4xl,
+.max-w-2xl{
+    max-width:100% !important;
+}
+
+.grid{
+    gap:16px !important;
+}
+
+.glass-card{
+    width:100%;
+}
+
+}
+
     </style>
+    <nav class="flex items-center gap-2 flex-wrap justify-center"></nav>
 </head>
 <body
 
@@ -483,7 +511,7 @@ input{
         </template>
     </div>
 
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col justify-center z-10 relative">
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12 flex flex-col justify-center relative">
 
         <div x-show="currentPage === 'home'" class="text-center space-y-12" x-transition:enter="transition duration-400">
             <div class="space-y-5 relative z-10">
