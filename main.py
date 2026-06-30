@@ -26,12 +26,19 @@ evaluation_progress = {
 
 app.secret_key = "StegArabic2026@Admin"
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "Steg@2026$admin"
+ADMIN_PASSWORD = "steg2026"
 
 cancel_requested = False
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+from datetime import timedelta
+
+app.secret_key = "StegArabic2026@Admin"
+
+app.config["SESSION_PERMANENT"] = False
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=5)
 
 
 # ---------------- PASSWORD ----------------
@@ -134,89 +141,180 @@ def user_static(filename):
 @app.route('/admin/', methods=['GET', 'POST'])
 def admin_index():
 
-
     if request.method == "POST":
-      username = request.form.get("username")
-      password = request.form.get("password")
+        username = request.form.get("username")
+        password = request.form.get("password")
 
-    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-        session["admin"] = True
-        return redirect("/admin/")
-    else:
-        return """
-        <h2 style="text-align:center;margin-top:100px;color:red">
-        اسم المستخدم أو كلمة المرور غير صحيحة
-        </h2>
-        """
-
-    if not session.get("admin"):
-        ...
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session["admin"] = True
+            return redirect("/admin/")
+        else:
+            return redirect("/admin/?error=1")
 
     if not session.get("admin"):
         return """
         <!DOCTYPE html>
-        <html lang="ar" dir="rtl">
+        <html>
         <head>
             <title>Admin Login</title>
         </head>
+      <body style="
+background:radial-gradient(circle at top right,#1e1b4b,#05070f);
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+font-family:Arial;
+color:white;
+">
 
-        <body style="
-            background:#0f172a;
-            color:white;
-            display:flex;
-            justify-content:center;
-            align-items:center;
-            height:100vh;
-            font-family:Arial;
-        ">
+<form method="POST" novalidate
+style="
+width:360px;
+background:rgba(13,18,35,.75);
+backdrop-filter:blur(20px);
+padding:35px;
+border-radius:24px;
+border:1px solid rgba(255,255,255,.08);
+box-shadow:0 20px 45px rgba(0,0,0,.45);
+text-align:center;
+">
 
-            <form method="POST"
-                  style="
-                    background:#1e293b;
-                    padding:35px;
-                    border-radius:15px;
-                    text-align:center;
-                  ">
-
-                <h2>🔒 Admin Login</h2>
-
+<h2 style="
+margin-bottom:25px;
+font-size:28px;
+font-weight:bold;
+">
+ Admin Login 🔒
+</h2>
 
 <input
-    type="text"
-    name="username"
-    placeholder="Username"
-    style="
-        width:250px;
-        padding:12px;
-        margin-top:20px;
-    ">
+type="text"
+name="username"
+placeholder="Username"
+style="
+width:100%;
+height:52px;
+padding:0 18px;
+border:none;
+border-radius:16px;
+background:#0f172a;
+color:white;
+margin-bottom:16px;
+box-sizing:border-box;
+font-size:15px;
+">
+</input>
 
-<br><br>
+<input
+type="password"
+name="password"
+placeholder="Password"
+style="
+width:100%;
+height:52px;
+padding:0 18px;
+border:none;
+border-radius:16px;
+background:#0f172a;
+color:white;
+margin-bottom:16px;
+box-sizing:border-box;
+font-size:15px;
+">
+</input>
 
+<button
+style="
+width:100%;
+height:52px;
+padding:0 18px;
+border:none;
+border-radius:16px;
+cursor:pointer;
+font-size:16px;
+font-weight:700;
+color:#fff;
+background:linear-gradient(90deg,#4f46e5,#7c3aed,#2563eb);
+background-size:200% 200%;
+box-sizing:border-box;
+transition:.3s;
+box-shadow:0 10px 25px rgba(79,70,229,.35);
+">
+Login
+</button>
 
-                <input
-                    type="password"
-                    name="password"
-                    placeholder="Password"
-                    style="
-                        width:250px;
-                        padding:12px;
-                        margin-top:20px;
-                    ">
+<div id="toast"
+style="
+visibility:hidden;
+opacity:0;
+min-height:28px;
+width:100%;
+margin-top:15px;
+color:#c4b5fd;
+font-size:18px;
+font-weight:600;
+text-align:center;
+transition:opacity .5s ease;
+">
+⚠️ اسم المستخدم أو كلمة المرور غير صحيحة
+</div>
 
-                <br><br>
+</form>
 
-                <button
-                    style="
-                        width:100%;
-                        padding:12px;
-                    ">
-                    Login
-                </button>
+<script>
 
-            </form>
+const toast = document.getElementById("toast");
 
-        </body>
+// إذا كانت البيانات خاطئة
+const params = new URLSearchParams(window.location.search);
+
+if (params.get("error")) {
+
+    toast.innerHTML = "⚠️ اسم المستخدم أو كلمة المرور غير صحيحة";
+    toast.style.visibility = "visible";
+    toast.style.opacity = "1";
+
+    window.history.replaceState({}, "", "/admin/");
+
+    setTimeout(() => {
+        toast.style.opacity = "0";
+        setTimeout(() => {
+            toast.style.visibility = "hidden";
+        }, 500);
+    }, 5000);
+}
+
+// إذا كانت الحقول فارغة
+document.querySelector("form").addEventListener("submit", function(e){
+
+    const username = document.querySelector("[name='username']").value.trim();
+    const password = document.querySelector("[name='password']").value.trim();
+
+    if (username === "" || password === "") {
+
+    e.preventDefault();
+
+    toast.innerHTML = "⚠️ يرجى إدخال اسم المستخدم وكلمة المرور";
+    toast.style.visibility = "visible";
+    toast.style.opacity = "1";
+
+    setTimeout(() => {
+        toast.style.opacity = "0";
+
+        setTimeout(() => {
+            toast.style.visibility = "hidden";
+        }, 500);
+
+    }, 5000);
+
+}
+
+});
+
+</script>
+
+</body>
         </html>
         """
 
@@ -877,10 +975,8 @@ def cancel_evaluation():
 
 @app.route("/admin/logout")
 def logout():
-
     session.clear()
-
-    return redirect("/admin/")
+    return redirect("/")
 
 if __name__ == "__main__":
     app.run(
