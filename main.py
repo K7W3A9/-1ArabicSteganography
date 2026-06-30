@@ -25,7 +25,8 @@ evaluation_progress = {
 }
 
 app.secret_key = "StegArabic2026@Admin"
-ADMIN_PASSWORD = "ضع_كلمة_مرور_قوية"
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "Steg@2026$admin"
 
 cancel_requested = False
 
@@ -133,16 +134,23 @@ def user_static(filename):
 @app.route('/admin/', methods=['GET', 'POST'])
 def admin_index():
 
+
     if request.method == "POST":
-        if request.form.get("password") == ADMIN_PASSWORD:
-            session["admin"] = True
-            return redirect("/admin/")
-        else:
-            return """
-            <h2 style="text-align:center;margin-top:100px;color:red">
-            كلمة المرور غير صحيحة
-            </h2>
-            """
+      username = request.form.get("username")
+      password = request.form.get("password")
+
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        session["admin"] = True
+        return redirect("/admin/")
+    else:
+        return """
+        <h2 style="text-align:center;margin-top:100px;color:red">
+        اسم المستخدم أو كلمة المرور غير صحيحة
+        </h2>
+        """
+
+    if not session.get("admin"):
+        ...
 
     if not session.get("admin"):
         return """
@@ -171,6 +179,20 @@ def admin_index():
                   ">
 
                 <h2>🔒 Admin Login</h2>
+
+
+<input
+    type="text"
+    name="username"
+    placeholder="Username"
+    style="
+        width:250px;
+        padding:12px;
+        margin-top:20px;
+    ">
+
+<br><br>
+
 
                 <input
                     type="password"
@@ -853,6 +875,13 @@ def cancel_evaluation():
         "status": "cancelled"
     })
 
+@app.route("/admin/logout")
+def logout():
+
+    session.clear()
+
+    return redirect("/admin/")
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
@@ -861,9 +890,4 @@ if __name__ == "__main__":
         threaded=True
     )
 
-    @app.route("/admin/logout")
-def logout():
-
-    session.clear()
-
-    return redirect("/admin/")
+  
