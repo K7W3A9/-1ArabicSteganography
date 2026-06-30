@@ -8,7 +8,7 @@ import encryption
 import embedding
 import extraction
 import robustness
-from flask import Flask, request, send_from_directory, jsonify
+from flask import Flask, request, send_from_directory, jsonify, session, redirect
 import threading
 from werkzeug.utils import secure_filename
 
@@ -23,6 +23,9 @@ evaluation_progress = {
     "total": 0,
     "results": []
 }
+
+app.secret_key = "StegArabic2026@Admin"
+ADMIN_PASSWORD = "ضع_كلمة_مرور_قوية"
 
 cancel_requested = False
 
@@ -127,8 +130,74 @@ def user_static(filename):
 
 # ---------------- ADMIN ----------------
 
-@app.route('/admin/')
+@app.route('/admin/', methods=['GET', 'POST'])
 def admin_index():
+
+    if request.method == "POST":
+        if request.form.get("password") == ADMIN_PASSWORD:
+            session["admin"] = True
+            return redirect("/admin/")
+        else:
+            return """
+            <h2 style="text-align:center;margin-top:100px;color:red">
+            كلمة المرور غير صحيحة
+            </h2>
+            """
+
+    if not session.get("admin"):
+        return """
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <title>Admin Login</title>
+        </head>
+
+        <body style="
+            background:#0f172a;
+            color:white;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            height:100vh;
+            font-family:Arial;
+        ">
+
+            <form method="POST"
+                  style="
+                    background:#1e293b;
+                    padding:35px;
+                    border-radius:15px;
+                    text-align:center;
+                  ">
+
+                <h2>🔒 Admin Login</h2>
+
+                <input
+                    type="password"
+                    name="password"
+                    placeholder="Password"
+                    style="
+                        width:250px;
+                        padding:12px;
+                        margin-top:20px;
+                    ">
+
+                <br><br>
+
+                <button
+                    style="
+                        width:100%;
+                        padding:12px;
+                    ">
+                    Login
+                </button>
+
+            </form>
+
+        </body>
+        </html>
+        """
+
     return send_from_directory("admin", "index_admin.html")
 
 
@@ -791,3 +860,10 @@ if __name__ == "__main__":
         debug=False,
         threaded=True
     )
+
+    @app.route("/admin/logout")
+def logout():
+
+    session.clear()
+
+    return redirect("/admin/")
